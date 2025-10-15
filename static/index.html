@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>🐍 Multiplayer Snake Game</title>
+<style>
+  body {
+    font-family: Arial, sans-serif;
+    background: radial-gradient(circle, #1b2735, #090a0f);
+    color: #fff;
+    text-align: center;
+    margin: 0;
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+  }
+  #login {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    align-items: center;
+  }
+  input {
+    padding: 10px;
+    border-radius: 5px;
+    border: none;
+    outline: none;
+    font-size: 16px;
+  }
+  button {
+    background: #00ff99;
+    color: #000;
+    border: none;
+    padding: 10px 20px;
+    font-size: 16px;
+    border-radius: 5px;
+    cursor: pointer;
+  }
+  button:hover { background: #00cc66; }
+  #gameCanvas {
+    display: none;
+    background: #000;
+    border: 2px solid #0f0;
+    margin-top: 15px;
+  }
+</style>
+</head>
+<body>
+  <h1>🐍 Multiplayer Snake</h1>
+
+  <div id="login">
+    <input id="playerName" type="text" placeholder="Enter your name">
+    <button id="joinBtn">Join Game</button>
+  </div>
+
+  <canvas id="gameCanvas" width="600" height="400"></canvas>
+  <p id="status"></p>
+
+<script>
+let socket;
+let playerID = null;
+let gameState = null;
+
+const canvas = document.getElementById("gameCanvas");
+const ctx = canvas.getContext("2d");
+const status = document.getElementById("status");
+
+document.getElementById("joinBtn").onclick = () => {
+  const name = document.getElementById("playerName").value.trim();
+  if (!name) return alert("Please enter your name!");
+
+  socket = new WebSocket(`ws://${window.location.host}/ws`);
+
+  socket.onopen = () => {
+    console.log("✅ Connected to server");
+    status.innerText = "Connected! Waiting for game data...";
+    socket.send(JSON.stringify({ type: "join", name }));
+  };
+
+  socket.onmessage = (event) => {
+    if (!event.data) return;
+
+    let msg;
+    try {
+      msg = JSON.parse(event.data);
+    } catch (err) {
+      console.warn("⚠️ Invalid JSON from server:", event.data);
+      return;
+    }
+
+    console.log("📩 Message from server:", msg);
+
+    if (msg.type === "joined") {
+      playerID = msg.id || msg.playerID || null;
+      document.getElementById("login").style.display = "none";
+      canvas.style.display = "block";
+      status.innerText = "🎮 Use arrow keys or WASD to move!";
+    } 
+    else if (msg.type === "state") {
+      gameState = msg.state || msg;
+      drawGame();
+    }
+  };
+
+  socket.onerror = (err) => {
+    console.error("WebSocket error:", err);
+    status.innerText = "⚠️ Connection error.";
+  };
+
+  socket.onclose = () => {
+    status.innerText = "❌ Disconnected. Refresh to rejoin.";
+  };
+};
+
+document.addEventListener("keydown", (e) => {
+  if (!socket || socket.readyState !== WebSocket.OPEN) return;
+  const dirMap = {
+    ArrowUp: "up", ArrowDown: "down", ArrowLeft: "left", ArrowRight: "right",
+    w: "up", s: "down", a: "left", d: "right"
+  };
+  const dir = dirMap[e.key];
+  if (dir) socket.send(JSON.stringify({ type: "dir", dir }));
+});
+
+function drawGame() {
+  const state = gameState.state ? gameState.state : gameState;
+  if (!state) return;
+
+  const { width = 30, height = 20, snakes = [], foods = [] } = state;
+  const cw = canvas.width / width;
+  const ch = canvas.height / height;
+
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+  // 🍎 Draw food
+  ctx.fillStyle = "#ff0";
+  (foods || []).forEach(f => {
+    if (f && f.X != null && f.Y != null)
+      ctx.fillRect(f.X * cw, f.Y * ch, cw, ch);
+  });
+
+  // 🐍 Draw snakes (ignore unnamed or ghost snakes)
+  (snakes || [])
+    .filter(s => s && s.name && s.name.trim().length > 0)  // 👈 only valid snakes
+    .forEach(s => {
+      if (!Array.isArray(s.body)) return;
+      ctx.fillStyle = s.id === playerID ? "#00ff00" : "#00b7ff";
+      s.body.forEach(seg => {
+        if (seg && seg.X != null && seg.Y != null)
+          ctx.fillRect(seg.X * cw, seg.Y * ch, cw - 1, ch - 1);
+      });
+
+      // Draw player name
+      const head = s.body[0];
+      ctx.fillStyle = "#fff";
+      ctx.font = "12px Arial";
+      ctx.fillText(s.name, head.X * cw, head.Y * ch - 2);
+    });
+}
+
+</script>
+</body>
+</html>
