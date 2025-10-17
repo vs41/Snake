@@ -351,7 +351,7 @@ func (s *GameServer) Serve() {
 	}()
 
 	log.Println("Listening on :3000")
-	log.Fatal(app.Listen(":3000"))
+	log.Fatal(app.ListenTLS(":3000"))
 }
 
 func (s *GameServer) BuildState() ServerState {
