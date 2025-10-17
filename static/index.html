@@ -71,7 +71,7 @@ document.getElementById("joinBtn").onclick = () => {
   const name = document.getElementById("playerName").value.trim();
   if (!name) return alert("Please enter your name!");
 
-  socket = new WebSocket(`ws://${window.location.host}/ws`);
+  socket = new WebSocket(`wss://${window.location.host}/ws`);
 
   socket.onopen = () => {
     console.log("✅ Connected to server");
